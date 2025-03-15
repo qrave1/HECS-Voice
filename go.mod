@@ -5,9 +5,10 @@ go 1.24.0
 require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
-	github.com/hraban/opus v0.0.0-20230925203106-0188a62cb302
 	github.com/pion/rtp v1.8.13
 	github.com/pion/webrtc/v3 v3.3.5
+	golang.org/x/sync v0.1.0
+	gopkg.in/hraban/opus.v2 v2.0.0-20230925203106-0188a62cb302
 )
 
 require (
@@ -32,6 +33,5 @@ require (
 	golang.org/x/crypto v0.21.0 // indirect
 	golang.org/x/net v0.22.0 // indirect
 	golang.org/x/sys v0.18.0 // indirect
-	gopkg.in/hraban/opus.v2 v2.0.0-20230925203106-0188a62cb302 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

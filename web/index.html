@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Voice Room</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 20px auto;
+            padding: 20px;
+        }
+
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+
+        .connected {
+            background: #dff0d8;
+        }
+
+        .disconnected {
+            background: #f2dede;
+        }
+
+        button {
+            padding: 8px 16px;
+            margin: 5px;
+        }
+
+        input {
+            padding: 8px;
+            width: 120px;
+        }
+
+        #participants {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        #participantsList {
+            list-style-type: none;
+            padding: 0;
+        }
+
+        #participantsList li {
+            padding: 5px;
+            background: #f9f9f9;
+            margin: 5px 0;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+<h1>Voice Chat Room</h1>
+
+<div id="connectPanel">
+    <div id="connectPanel">
+        <label for="name">
+            <input type="text" id="name" placeholder="Your name">
+        </label>
+        <label for="roomCode">
+            <input type="text" id="roomCode" placeholder="Enter 4-digit code" maxlength="4">
+        </label>
+        <button id="connectBtn">Connect</button>
+    </div>
+</div>
+
+<div id="participants">
+    <h3>Participants</h3>
+    <ul id="participantsList"></ul>
+</div>
+
+<div id="status" class="status disconnected">Disconnected</div>
+
+<button id="disconnectBtn" style="display: none;">Disconnect</button>
+
+<script src="client.js"></script>
+</body>
+</html>
