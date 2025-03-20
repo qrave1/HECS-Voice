@@ -1,4 +1,4 @@
-# MCU
+# HECS Voice
 
 ## requirements
 
