@@ -1,4 +1,4 @@
-module mcu
+module github.com/qrave1/HECS-Voice
 
 go 1.24.0
 
