@@ -244,7 +244,9 @@ func handleClientMessage(c *Client, msg []byte) error {
 		if err != nil {
 			return err
 		}
-		c.pc.SetLocalDescription(answer)
+		if err = c.pc.SetLocalDescription(answer); err != nil {
+			return err
+		}
 		return c.conn.WriteJSON(map[string]interface{}{"type": "answer", "sdp": answer.SDP})
 
 	case "candidate":

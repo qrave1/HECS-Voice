@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>HECS</title>
+
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+
+<body x-data="app()">
+
+<div x-data="connect_form()" x-show="!pc">
+    <div>
+        <label>
+            <input
+                    type="text"
+                    placeholder="Your name"
+                    x-model="name"
+                    @input="validateName()"
+            >
+        </label>
+
+        <label>
+            <input
+                    type="text"
+                    placeholder="Enter 4-symbol code"
+                    x-model="roomCode"
+                    @input="validateRoomCode()"
+            >
+        </label>
+
+        <button @click="connect()" :disabled="!isFormValid()">Connect</button>
+    </div>
+</div>
+
+<div x-show="pc">
+    <h3>Participants</h3>
+    <ul>
+        <template x-for="participant in participants">
+            <li x-text="participant"></li>
+        </template>
+    </ul>
+</div>
+
+
+<div x-show="!pc">Disconnected</div>
+
+<button x-show="pc">Disconnect</button>
+
+<script>
+    function app() {
+        return {
+            name: '',
+            roomCode: '',
+            ws: null,
+            pc: null,
+            localStream: null,
+            participants: [],
+
+            connect() {
+
+            },
+
+            async initializeWebSocket(roomCode, name) {
+                // TODO убрать залупу
+                this.ws = new WebSocket(`${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws`);
+
+                return new Promise((resolve, reject) => {
+                    this.ws.onopen = () => {
+                        this.ws.send(JSON.stringify({type: 'join', name: name, room: roomCode}));
+                        resolve();
+                    };
+
+                    this.ws.onerror = (err) => reject(err);
+
+                    this.ws.onmessage = (event) => this.handleWSMessage(event);
+
+                    this.ws.onclose = () => {
+                        if (this.pc) this.disconnect();
+                        alert('Connection closed');
+                    };
+                });
+            },
+
+            async initializeWebRTC() {
+                this.pc = new RTCPeerConnection({
+                    iceServers: [{urls: 'stun:stun.l.google.com:19302'}]
+                });
+
+                // Настройка обработчиков WebRTC
+                this.pc.onicecandidate = (e) => {
+                    if (e.candidate) {
+                        console.log('New ICE candidate:', e.candidate);
+
+                        this.ws.send(JSON.stringify({
+                            type: 'candidate',
+                            candidate: e.candidate
+                        }));
+                    }
+                };
+
+                // Получение аудио с микрофона
+                this.localStream = await navigator.mediaDevices.getUserMedia({audio: true});
+                this.localStream.getTracks().forEach(track => {
+                    console.log('Adding local track:', track);
+
+                    this.pc.addTrack(track, this.localStream);
+                });
+
+                // TODO мб нужно, но вроде как нет
+                // this.pc.addTransceiver('audio', {
+                //     direction: 'sendrecv',
+                //     streams: [this.localStream]
+                // });
+
+                // Обработка входящего аудио
+                this.pc.ontrack = (event) => {
+                    const audio = new Audio();
+                    audio.srcObject = event.streams[0];
+                    audio.play();
+                };
+
+                const offer = await this.pc.createOffer();
+                await this.pc.setLocalDescription(offer);
+                this.ws.send(JSON.stringify({
+                    type: 'offer',
+                    sdp: offer.sdp
+                }));
+            },
+
+            async handleWSMessage(event) {
+                const message = JSON.parse(event.data);
+
+                switch (message.type) {
+                    case 'offer':
+                        await this.pc.setRemoteDescription(message);
+                        const answer = await this.pc.createAnswer();
+                        await this.pc.setLocalDescription(answer);
+                        this.ws.send(JSON.stringify(answer));
+                        break;
+
+                    case 'answer':
+                        await this.pc.setRemoteDescription(message);
+                        break;
+
+                    case 'candidate':
+                        try {
+                            await this.pc.addIceCandidate(message.candidate);
+                        } catch (err) {
+                            console.error('Error adding ICE candidate:', err);
+                        }
+                        break;
+                    case 'participants':
+                        this.updateParticipants(message.list);
+                        break;
+
+                    default:
+                        console.warn('Unknown message type:', message.type);
+                }
+            },
+
+            updateParticipants(participants) {
+                this.participants = participants
+            },
+
+            disconnect() {
+                if (this.pc) {
+                    this.pc.close();
+                    this.pc = null;
+                }
+
+                if (this.ws) {
+                    this.ws.close();
+                    this.ws = null;
+                }
+
+                if (this.localStream) {
+                    this.localStream.getTracks().forEach(track => track.stop());
+                    this.localStream = null;
+                }
+            }
+        }
+    }
+
+    function connect_form() {
+        return {
+            // Вычисляемое свойство для валидности формы
+            get isFormValid() {
+                return this.validateName() && this.validateName()
+            },
+
+            validateRoomCode() {
+                const re = /[A-Z0-9]{4}/gm;
+                return re.test(this.roomCode)
+            },
+
+            validateName() {
+                return this.name.length > 0
+            },
+        }
+    }
+</script>
+
+</body>
+</html>
