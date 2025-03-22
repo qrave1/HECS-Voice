@@ -2,83 +2,322 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>HECS Voice</title>
+    <title>HECS</title>
+
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
     <style>
+        /* Основные стили */
         body {
-            font-family: Arial, sans-serif;
-            max-width: 600px;
-            margin: 20px auto;
+            font-family: 'Inter', sans-serif;
+            background-color: #36393f;
+            color: #ffffff;
+            margin: 0;
             padding: 20px;
         }
 
-        .status {
+        /* Стили для формы */
+        div[x-data="connect_form()"] {
+            background-color: #2f3136;
+            padding: 40px;
+            border-radius: 20px;
+            border: 1px solid #202225;
+            max-width: 400px;
+            margin: 0 auto;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 15px;
+        }
+
+        input[type="text"] {
+            width: 100%;
             padding: 10px;
-            margin: 10px 0;
-            border-radius: 5px;
+            border: 1px solid #202225;
+            border-radius: 4px;
+            background-color: #40444b;
+            color: #ffffff;
+            font-size: 14px;
+            outline: none;
+            box-sizing: border-box;
         }
 
-        .connected {
-            background: #dff0d8;
+        input[type="text"]::placeholder {
+            color: #72767d;
         }
 
-        .disconnected {
-            background: #f2dede;
+        input[type="text"]:focus {
+            border-color: #7289da;
         }
 
-        button {
-            padding: 8px 16px;
-            margin: 5px;
+        button.connect {
+            background-color: #7289da;
+            color: #ffffff;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background-color 0.2s;
         }
 
-        input {
-            padding: 8px;
-            width: 120px;
+        button.disconnect {
+            background-color: #7289da;
+            color: #ffffff;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background-color 0.2s;
         }
 
-        #participants {
-            margin-top: 20px;
-            padding: 10px;
-            border: 1px solid #ccc;
-            border-radius: 5px;
+        button:disabled {
+            background-color: #4a4e55;
+            cursor: not-allowed;
         }
 
-        #participantsList {
-            list-style-type: none;
+        button:hover:not(:disabled) {
+            background-color: #677bc4;
+        }
+
+        /* Стили для списка участников */
+        div[x-show="pc"] {
+            background-color: #2f3136;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #202225;
+            max-width: 400px;
+            margin: 20px auto;
+        }
+
+        h3 {
+            margin-top: 0;
+            color: #ffffff;
+        }
+
+        ul {
+            list-style: none;
             padding: 0;
         }
 
-        #participantsList li {
-            padding: 5px;
-            background: #f9f9f9;
-            margin: 5px 0;
-            border-radius: 3px;
+        li {
+            padding: 8px;
+            background-color: #40444b;
+            border-radius: 4px;
+            margin-bottom: 8px;
+            color: #ffffff;
+        }
+
+        /*Стили для состояния "Disconnected"*/
+        div[x-show="!pc"] {
+            text-align: center;
+            color: #677bc4;
+            margin-top: 20px;
         }
     </style>
 </head>
-<body>
-<h1>HECS Room</h1>
 
-<div id="connectPanel">
-    <div id="connectPanel">
-        <label for="name">
-            <input type="text" id="name" placeholder="Your name">
+<body x-data="app()">
+
+<div x-data="connect_form()" x-show="!pc">
+    <div>
+        <label>
+            <input
+                    type="text"
+                    placeholder="Your name"
+                    x-model="name"
+                    @input="validateName()"
+            >
         </label>
-        <label for="roomCode">
-            <input type="text" id="roomCode" placeholder="Enter 4-digit code" maxlength="4">
+
+        <label>
+            <input
+                    type="text"
+                    placeholder="Enter 4-symbol code"
+                    x-model="roomCode"
+                    @input="validateRoomCode()"
+            >
         </label>
-        <button id="connectBtn">Connect</button>
+
+        <button @click="connect()" :disabled="!isFormValid()" class="connect">Connect</button>
     </div>
 </div>
 
-<div id="participants">
+<div x-show="pc">
     <h3>Participants</h3>
-    <ul id="participantsList"></ul>
+    <ul>
+        <template x-for="participant in participants">
+            <li x-text="participant"></li>
+        </template>
+    </ul>
 </div>
 
-<div id="status" class="status disconnected">Disconnected</div>
+<button x-show="pc" @click="disconnect()" class="disconnect">Disconnect</button>
 
-<button id="disconnectBtn" style="display: none;">Disconnect</button>
+<script>
+    function app() {
+        return {
+            name: '',
+            roomCode: '',
 
-<script src="client.js"></script>
+            ws: null,
+            pc: null,
+            localStream: null,
+            participants: [],
+
+            async connect() {
+                try {
+                    await this.initializeWebSocket();
+                    await this.initializeWebRTC();
+                } catch (err) {
+                    console.error('Connection error:', err);
+                    alert('Connection failed: ' + err.message);
+                }
+            },
+
+            async initializeWebSocket() {
+                // TODO убрать залупу
+                this.ws = new WebSocket(`${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws`);
+
+                return new Promise((resolve, reject) => {
+                    this.ws.onopen = () => {
+                        this.ws.send(JSON.stringify({type: 'join', name: this.name, room: this.roomCode}));
+                        resolve();
+                    };
+
+                    this.ws.onerror = (err) => reject(err);
+
+                    this.ws.onmessage = (event) => this.handleWSMessage(event);
+
+                    this.ws.onclose = () => {
+                        if (this.pc) this.disconnect();
+                        alert('Connection closed');
+                    };
+                });
+            },
+
+            async initializeWebRTC() {
+                this.pc = new RTCPeerConnection({
+                    iceServers: [{urls: 'stun:stun.l.google.com:19302'}]
+                });
+
+                // Настройка обработчиков WebRTC
+                this.pc.onicecandidate = (e) => {
+                    if (e.candidate) {
+                        console.log('New ICE candidate:', e.candidate);
+
+                        this.ws.send(JSON.stringify({
+                            type: 'candidate',
+                            candidate: e.candidate
+                        }));
+                    }
+                };
+
+                // Получение аудио с микрофона
+                this.localStream = await navigator.mediaDevices.getUserMedia({audio: true});
+                this.localStream.getTracks().forEach(track => {
+                    console.log('Adding local track:', track);
+
+                    this.pc.addTrack(track, this.localStream);
+                });
+
+                // TODO мб нужно, но вроде как нет
+                // this.pc.addTransceiver('audio', {
+                //     direction: 'sendrecv',
+                //     streams: [this.localStream]
+                // });
+
+                // Обработка входящего аудио
+                this.pc.ontrack = (event) => {
+                    const audio = new Audio();
+                    audio.srcObject = event.streams[0];
+                    audio.play();
+                };
+
+                const offer = await this.pc.createOffer();
+                await this.pc.setLocalDescription(offer);
+                this.ws.send(JSON.stringify({
+                    type: 'offer',
+                    sdp: offer.sdp
+                }));
+            },
+
+            async handleWSMessage(event) {
+                const message = JSON.parse(event.data);
+
+                switch (message.type) {
+                    case 'offer':
+                        await this.pc.setRemoteDescription(message);
+                        const answer = await this.pc.createAnswer();
+                        await this.pc.setLocalDescription(answer);
+                        this.ws.send(JSON.stringify(answer));
+                        break;
+
+                    case 'answer':
+                        await this.pc.setRemoteDescription(message);
+                        break;
+
+                    case 'candidate':
+                        try {
+                            await this.pc.addIceCandidate(message.candidate);
+                        } catch (err) {
+                            console.error('Error adding ICE candidate:', err);
+                        }
+                        break;
+                    case 'participants':
+                        this.updateParticipants(message.list);
+                        break;
+
+                    default:
+                        console.warn('Unknown message type:', message.type);
+                }
+            },
+
+            updateParticipants(participants) {
+                this.participants = participants
+            },
+
+            disconnect() {
+                if (this.pc) {
+                    this.pc.close();
+                    this.pc = null;
+                }
+
+                if (this.ws) {
+                    this.ws.close();
+                    this.ws = null;
+                }
+
+                if (this.localStream) {
+                    this.localStream.getTracks().forEach(track => track.stop());
+                    this.localStream = null;
+                }
+            }
+        }
+    }
+
+    function connect_form() {
+        return {
+            // Вычисляемое свойство для валидности формы
+            get isFormValid() {
+                return this.validateName() && this.validateName()
+            },
+
+            validateRoomCode() {
+                const re = /[A-Z0-9]{4}/gm;
+                return re.test(this.roomCode)
+            },
+
+            validateName() {
+                return this.name.length > 0
+            },
+        }
+    }
+</script>
+
 </body>
 </html>
