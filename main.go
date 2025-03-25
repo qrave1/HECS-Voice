@@ -67,6 +67,8 @@ func (r *Room) AddClient(c *Client) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.clients[c.id] = c
+
+	r.broadcastParticipants()
 }
 
 func (r *Room) RemoveClient(clientID string) {
@@ -74,8 +76,22 @@ func (r *Room) RemoveClient(clientID string) {
 	defer r.mu.Unlock()
 	delete(r.clients, clientID)
 
+	// отправляем информацию об удалении клиента всем остальным
+	r.broadcastParticipants()
+
 	if len(r.clients) == 0 {
 		roomManager.Remove(r.id)
+	}
+}
+
+func (r *Room) broadcastParticipants() {
+	parts := make([]string, 0, len(r.clients))
+	for _, client := range r.clients {
+		parts = append(parts, client.name)
+	}
+
+	for _, client := range r.clients {
+		client.conn.WriteJSON(map[string]interface{}{"type": "participants", "list": parts})
 	}
 }
 
@@ -131,7 +147,7 @@ func createPeerConnection() (*webrtc.PeerConnection, *webrtc.TrackLocalStaticRTP
 	}
 
 	audioTrack, err := webrtc.NewTrackLocalStaticRTP(
-		webrtc.RTPCodecCapability{MimeType: "audio/opus"}, "audio", "pion",
+		webrtc.RTPCodecCapability{MimeType: "audio/opus"}, "audio", "hecs",
 	)
 	if err != nil {
 		return nil, nil, err
@@ -163,7 +179,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		conn:       conn,
 		pc:         pc,
 		audioTrack: audioTrack,
-		ssrc:       uint32(uuid.New().ID()),
+		ssrc:       uuid.New().ID(),
 	}
 
 	defer func() {

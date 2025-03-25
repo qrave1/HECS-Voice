@@ -17,7 +17,7 @@
         }
 
         /* Стили для формы */
-        div[x-data="connect_form()"] {
+        .connect_form {
             background-color: #2f3136;
             padding: 40px;
             border-radius: 20px;
@@ -112,6 +112,11 @@
             color: #ffffff;
         }
 
+        .room {
+            max-width: 400px;
+            margin: 0 auto;
+        }
+
         /*Стили для состояния "Disconnected"*/
         div[x-show="!pc"] {
             text-align: center;
@@ -123,14 +128,13 @@
 
 <body x-data="app()">
 
-<div x-data="connect_form()" x-show="!pc">
+<div x-show="!pc" class="connect_form">
     <div>
         <label>
             <input
                     type="text"
                     placeholder="Your name"
                     x-model="name"
-                    @input="validateName()"
             >
         </label>
 
@@ -139,7 +143,8 @@
                     type="text"
                     placeholder="Enter 4-symbol code"
                     x-model="roomCode"
-                    @input="validateRoomCode()"
+                    @input="roomCode = $event.target.value.toUpperCase(); $event.target.value = roomCode"
+                    maxlength="4"
             >
         </label>
 
@@ -147,16 +152,18 @@
     </div>
 </div>
 
-<div x-show="pc">
-    <h3>Participants</h3>
-    <ul>
-        <template x-for="participant in participants">
-            <li x-text="participant"></li>
-        </template>
-    </ul>
-</div>
+<div class="room">
+    <div x-show="pc">
+        <h3>Participants</h3>
+        <ul>
+            <template x-for="participant in participants">
+                <li x-text="participant"></li>
+            </template>
+        </ul>
 
-<button x-show="pc" @click="disconnect()" class="disconnect">Disconnect</button>
+        <button x-show="pc" @click="disconnect()" class="disconnect">Disconnect</button>
+    </div>
+</div>
 
 <script>
     function app() {
@@ -168,6 +175,11 @@
             pc: null,
             localStream: null,
             participants: [],
+
+            isFormValid() {
+                const re = /[A-Z0-9]{4}/;
+                return this.name.trim().length > 0 && re.test(this.roomCode)
+            },
 
             async connect() {
                 try {
@@ -224,12 +236,6 @@
 
                     this.pc.addTrack(track, this.localStream);
                 });
-
-                // TODO мб нужно, но вроде как нет
-                // this.pc.addTransceiver('audio', {
-                //     direction: 'sendrecv',
-                //     streams: [this.localStream]
-                // });
 
                 // Обработка входящего аудио
                 this.pc.ontrack = (event) => {
@@ -297,24 +303,6 @@
                     this.localStream = null;
                 }
             }
-        }
-    }
-
-    function connect_form() {
-        return {
-            // Вычисляемое свойство для валидности формы
-            get isFormValid() {
-                return this.validateName() && this.validateName()
-            },
-
-            validateRoomCode() {
-                const re = /[A-Z0-9]{4}/gm;
-                return re.test(this.roomCode)
-            },
-
-            validateName() {
-                return this.name.length > 0
-            },
         }
     }
 </script>
