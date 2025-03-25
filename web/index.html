@@ -126,7 +126,7 @@
     </style>
 </head>
 
-<body x-data="app()">
+<body x-data="app()" x-init="init()">
 
 <div x-show="!pc" class="connect_form">
     <div>
@@ -257,7 +257,7 @@
                 }
             },
 
-            updateOutputDevice() {
+            async updateOutputDevice() {
                 if (this.currentAudioElement && this.selectedOutputDevice) {
                     // Проверяем поддержку setSinkId
                     if ('setSinkId' in this.currentAudioElement) {
@@ -404,10 +404,6 @@
             }
         }
     }
-
-    document.addEventListener('alpine:init', () => {
-        Alpine.data('app', app);
-    });
 </script>
 
 </body>
