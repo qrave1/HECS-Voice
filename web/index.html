@@ -148,6 +148,26 @@
             >
         </label>
 
+        <!-- Выбор устройства ввода -->
+        <label>
+            Audio Input:
+            <select x-model="selectedInputDevice" @change="updateAudioDevices()">
+                <template x-for="device in audioInputDevices">
+                    <option :value="device.deviceId" x-text="device.label || 'Default Microphone'"></option>
+                </template>
+            </select>
+        </label>
+
+        <!-- Выбор устройства вывода -->
+        <label>
+            Audio Output:
+            <select x-model="selectedOutputDevice" @change="updateOutputDevice()">
+                <template x-for="device in audioOutputDevices">
+                    <option :value="device.deviceId" x-text="device.label || 'Default Speaker'"></option>
+                </template>
+            </select>
+        </label>
+
         <button @click="connect()" :disabled="!isFormValid()" class="connect">Connect</button>
     </div>
 </div>
@@ -171,6 +191,12 @@
             name: '',
             roomCode: '',
 
+            audioInputDevices: [],
+            audioOutputDevices: [],
+            selectedInputDevice: '',
+            selectedOutputDevice: '',
+            currentAudioElement: null,
+
             ws: null,
             pc: null,
             localStream: null,
@@ -180,6 +206,67 @@
                 const re = /[A-Z0-9]{4}/;
                 return this.name.trim().length > 0 && re.test(this.roomCode)
             },
+
+            async init() {
+                await this.getAudioDevices();
+                // Обновляем список устройств при изменении
+                navigator.mediaDevices.addEventListener('devicechange', () => this.getAudioDevices());
+            },
+
+            async getAudioDevices() {
+                // Получаем разрешение на доступ к микрофону (требуется для получения меток устройств)
+                await navigator.mediaDevices.getUserMedia({audio: true})
+                    .then(stream => {
+                        stream.getTracks().forEach(track => track.stop());
+                    })
+                    .catch(console.error);
+
+                // Получаем список устройств
+                const devices = await navigator.mediaDevices.enumerateDevices();
+
+                this.audioInputDevices = devices.filter(d => d.kind === 'audioinput');
+                this.audioOutputDevices = devices.filter(d => d.kind === 'audiooutput');
+
+                if (this.audioInputDevices.length > 0 && !this.selectedInputDevice) {
+                    this.selectedInputDevice = this.audioInputDevices[0].deviceId;
+                }
+
+                if (this.audioOutputDevices.length > 0 && !this.selectedOutputDevice) {
+                    this.selectedOutputDevice = this.audioOutputDevices[0].deviceId;
+                }
+            },
+
+            async updateAudioDevices() {
+                if (this.localStream) {
+                    this.localStream.getTracks().forEach(track => track.stop());
+                }
+
+                const constraints = {
+                    audio: {
+                        deviceId: this.selectedInputDevice ? {exact: this.selectedInputDevice} : undefined
+                    }
+                };
+
+                this.localStream = await navigator.mediaDevices.getUserMedia(constraints);
+
+                if (this.pc) {
+                    const sender = this.pc.getSenders().find(s => s.track.kind === 'audio');
+                    if (sender) {
+                        sender.replaceTrack(this.localStream.getAudioTracks()[0]);
+                    }
+                }
+            },
+
+            updateOutputDevice() {
+                if (this.currentAudioElement && this.selectedOutputDevice) {
+                    // Проверяем поддержку setSinkId
+                    if ('setSinkId' in this.currentAudioElement) {
+                        this.currentAudioElement.setSinkId(this.selectedOutputDevice)
+                            .catch(err => console.error('Error setting audio output:', err));
+                    }
+                }
+            },
+
 
             async connect() {
                 try {
@@ -229,11 +316,16 @@
                     }
                 };
 
-                // Получение аудио с микрофона
-                this.localStream = await navigator.mediaDevices.getUserMedia({audio: true});
-                this.localStream.getTracks().forEach(track => {
-                    console.log('Adding local track:', track);
+                // Используем выбранное устройство ввода
+                const constraints = {
+                    audio: {
+                        deviceId: this.selectedInputDevice ? {exact: this.selectedInputDevice} : undefined
+                    }
+                };
 
+                // Получение аудио с микрофона
+                this.localStream = await navigator.mediaDevices.getUserMedia(constraints);
+                this.localStream.getTracks().forEach(track => {
                     this.pc.addTrack(track, this.localStream);
                 });
 
@@ -241,6 +333,13 @@
                 this.pc.ontrack = (event) => {
                     const audio = new Audio();
                     audio.srcObject = event.streams[0];
+
+                    // Устанавливаем выбранное устройство вывода
+                    if (this.selectedOutputDevice && 'setSinkId' in audio) {
+                        audio.setSinkId(this.selectedOutputDevice)
+                            .catch(err => console.error('Error setting audio output:', err));
+                    }
+
                     audio.play();
                 };
 
@@ -305,6 +404,10 @@
             }
         }
     }
+
+    document.addEventListener('alpine:init', () => {
+        Alpine.data('app', app);
+    });
 </script>
 
 </body>
