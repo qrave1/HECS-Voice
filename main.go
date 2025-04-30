@@ -281,6 +281,6 @@ func handleClientMessage(c *Client, msg []byte) error {
 func main() {
 	http.Handle("/", http.FileServer(http.Dir("web")))
 	http.HandleFunc("/ws", handleWebSocket)
-	log.Println("Server starting on :8000")
-	log.Fatal(http.ListenAndServe(":8000", nil))
+	log.Println("Server starting on :3000")
+	log.Fatal(http.ListenAndServe(":3000", nil))
 }
